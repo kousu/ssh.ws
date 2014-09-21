@@ -116,7 +116,8 @@ function on_auth(e) {
   console.log("AUTH_CALLBACK", e)
   
   // use 'xterm' to get color
-  client.invoke_shell('vt100', 80, 50, on_shell)
+  // 'vt100' or blank for monochrome
+  client.invoke_shell('xterm', 80, 50, on_shell)
 }
 
 var shell = null;
@@ -197,28 +198,52 @@ transport.start_client()
     sshTermHandler()
   }
   
-  function sshTermHandler() {
-    
+  function sshTermHandler() {    
     console.log("sending ", "|"+this.inputChar+"|")
     shell.send(String.fromCharCode(this.inputChar));
   }
   
 
+Terminal.prototype._visualBell_On = false; //shittiest visual bell evar
+Terminal.prototype.visualBell = function() {
+  var self = this;
+  if(self._visualBell_On) return;
+  self._visualBell_On = true;
+  self.setTextColor("red")
+  setInterval(function() {
+    self.setTextColor("green");
+    self._visualBell_On = false;
+  }, 50)
+}
+
 var gData;
 function write_termlib(data) {
-     gData = data;
-     console.log("RECEIVED " + "|" + data + "|")
+    console.log("received ", "|"+data+"|")
+    
+  function writechar(c) {
+    if(c.charCodeAt(0) == termKey.BACKSPACE) {
+      term.backspace()
+    } else if(c.charCodeAt(0) == termKey.BEL) {
+      term.visualBell()
+    } else {
+      term.write(c)
+    }
+  }
+  function writechars(C) {
+    C = C.split("\b\x1B[K").join("\b") //this escape code (\x1B is ESC) comes along with a backspace and causes..problems. termlib doesn't handle it despite me telling it to. erugh.
+    for(var i=0; i<C.length; i++) {
+      writechar(C.charAt(i))
+    }
+  }
+    
      var lines = data.split("\r\n")
      var last_line = lines[lines.length-1]; //we need to skip the newline on the last line or else funny things happen
      lines = lines.slice(0, lines.length-1)
-     console.log("split RECEIVED into", {l: lines}, {l: last_line})
      lines.forEach(function(line) {
-       console.log("wrintingo ut", line.indexOf("\n"))
-       term.write(line)
+       writechars(line)
        term.newLine() ;//termlib doesn't know how to handle actual newlines
        })
-      console.log("wrintingo ut", last_line.indexOf("\n"))
-      term.write(last_line)
+      writechars(last_line)
 }
   
   function poll_paramiko() {
@@ -245,7 +270,7 @@ function write_termlib(data) {
 
 .term {
 	font-family: courier,fixed,swiss,sans-serif;
-	font-size: 12px;
+	font-size: 28px;
 	color: #33d011;
 	background: none;
 }
@@ -253,6 +278,8 @@ function write_termlib(data) {
 	color: #111111;
 	background: #33d011;
 }
+
+body { background: #111111 }
 </style>
 
 </html>
