@@ -1,0 +1,20 @@
+
+<!-- minimal test for for testing whether your WebSockets library can handle binary being pushed over it -->
+<!-- run this identical code on Firefox, Chrome, Opera, and Nodejs to see the differences -->
+<script>
+var ws = new WebSocket("ws://localhost:8022", "base64");
+ws.onmessage = function(e) { 
+
+ console.log(e.data)
+console.log(atob(e.data)) }
+
+ws.onopen = function(e) {
+  ws.send(btoa("SSH-2.0-FireFTP_0\r\n"))
+}
+
+
+ws.onerror = function(e) {
+  console.error(e)
+}
+
+</script>
