@@ -13,6 +13,8 @@ $ python2 -m SimpleHTTPServer
 
 run in this directory will do what you need.
 
+<div id="termDiv" style="width: 800; height: 800"></div>
+
 </body>
 
 <script src="/lib/require.js"></script>
@@ -71,6 +73,10 @@ run in this directory will do what you need.
 <script type="application/x-javascript" src="/lib/paramikojs/win_pageant.js"></script>
 
 
+
+<script language="JavaScript" type="text/javascript" src="/lib/termlib.js"></script>
+</head>
+
 <script>
 
 // WEBSOCKETS
@@ -109,7 +115,8 @@ function on_auth(e) {
   console.log("Successfully connected")
   console.log("AUTH_CALLBACK", e)
   
-  client.invoke_shell('xterm', 80, 50, on_shell)
+  // use 'xterm' to get color
+  client.invoke_shell('vt100', 80, 50, on_shell)
 }
 
 var shell = null;
@@ -118,13 +125,9 @@ function on_shell(e) {
   console.log(e)
   shell = e;
   
+  setInterval(poll_paramiko, 500);
   setTimeout(function() {
     shell.send("mktemp\n")
-    
-    setTimeout(function() {
-      var stdin = shell.recv(1<<15)
-      console.log(stdin)
-    }, 2*1000)
   }, 2*1000);
 }
 
@@ -154,7 +157,7 @@ ws.onmessage = function(evt) {
   on_read(atob(evt.data));
 }
 
-// plug it all together
+// plug PARAMIKO <-> WEBSOCKETS all together
 var transport = client.connect(observer, on_write, on_auth, host, port, user, password, null, null);
 transport.authenticatedCallback = function(e) {
   console.log("AUTHENTICATED_CALLBACK")
@@ -174,6 +177,82 @@ transport.auth_callback = function() {
 //
 transport.start_client()
 */
+
+// TERMLIB
+
+  var term = new Terminal({rows: 24, greeting: "", crsrBlinkMode: true, handler: sshTermHandler, exitHandler: null ,
+  ctrlHandler: MyctrlHandler,
+  
+     mapANSI: true, // support colors (?? except this doesn't seem to be working
+     ps: "",  //disable built in prompt in favour of what ssh feeds us
+     charMode: true
+     })
+  
+  //var term = new Terminal( {handler: termHandler, termDiv: "term"} );
+  term.open();
+  term.charMode = true;
+  
+  function MyctrlHandler() {
+    alert("CTRL")
+    sshTermHandler()
+  }
+  
+  function sshTermHandler() {
+    
+    console.log("sending ", "|"+this.inputChar+"|")
+    shell.send(String.fromCharCode(this.inputChar));
+  }
+  
+
+var gData;
+function write_termlib(data) {
+     gData = data;
+     console.log("RECEIVED " + "|" + data + "|")
+     var lines = data.split("\r\n")
+     var last_line = lines[lines.length-1]; //we need to skip the newline on the last line or else funny things happen
+     lines = lines.slice(0, lines.length-1)
+     console.log("split RECEIVED into", {l: lines}, {l: last_line})
+     lines.forEach(function(line) {
+       console.log("wrintingo ut", line.indexOf("\n"))
+       term.write(line)
+       term.newLine() ;//termlib doesn't know how to handle actual newlines
+       })
+      console.log("wrintingo ut", last_line.indexOf("\n"))
+      term.write(last_line)
+}
+  
+  function poll_paramiko() {
+    try {
+     var data = shell.recv(1<<15)
+     write_termlib(data)
+    } catch(ex) {
+      if(ex instanceof paramikojs.ssh_exception.WaitException) {
+        //pass
+      } else {
+        console.error(ex)
+        throw ex;
+      }
+    }
+  }
+
+// plug PARAMIKO <-> TERMLIB
+
+
+
 </script>
+
+<style>
+
+.term {
+	font-family: courier,fixed,swiss,sans-serif;
+	font-size: 12px;
+	color: #33d011;
+	background: none;
+}
+.termReverse {
+	color: #111111;
+	background: #33d011;
+}
+</style>
 
 </html>
