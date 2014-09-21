@@ -94,7 +94,9 @@ ws.onerror = function(evt) {
 var host = "localhost"
 var port = 22;
 var user = "kousu"
-var password = "sdffodsjfsduij" //prompt("Enter your password (very insecurely)")
+var password = "xxxxxx" // prompt("Enter your password (very insecurely)")
+
+console.log("hello")
 
 var client = new paramikojs.SSHClient()
 client.set_missing_host_key_policy(new paramikojs.AskPolicy())
@@ -103,16 +105,27 @@ var observer = {} // I.. think .. this doesn't actually need methods? I hope??
 observer.version = 0 // wtf. this is used *inside* to generate the welcome banner??
 observer.onSftpCache = function(e) { console.log("onSftpCache:", e) }
 
-function on_auth() {
+function on_auth(e) {
   console.log("Successfully connected")
-  console.log("AUTH_CALLBACK")
-  alert("AUTH")
+  console.log("AUTH_CALLBACK", e)
   
-  client.invoke_shell('xterm-256color', 80, 50, on_shell)
+  client.invoke_shell('xterm', 80, 50, on_shell)
 }
 
-function on_shell() {
+var shell = null;
+function on_shell(e) {
   console.log("successfully constructed a shell")
+  console.log(e)
+  shell = e;
+  
+  setTimeout(function() {
+    shell.send("mktemp\n")
+    
+    setTimeout(function() {
+      var stdin = shell.recv(1<<15)
+      console.log(stdin)
+    }, 2*1000)
+  }, 2*1000);
 }
 
 // PARAMIKO <-> WEBSOCKETS
@@ -125,17 +138,14 @@ function on_write(data) {
 }
 
 function on_read(data) {
-  console.log(data)
-  console.log("OLD BUFFER:", transport.fullBuffer)
+  //console.log(data)
   transport.fullBuffer += data;
-  console.log("NEW BUFFER:", transport.fullBuffer)
   
   try {
     transport.run() // pump one iteration of the 'transport' event loop
   } catch(err) {
     console.error(err)
   }
-  console.log("NEWEST BUFFER:", transport.fullBuffer)
 }
 
 
@@ -146,6 +156,10 @@ ws.onmessage = function(evt) {
 
 // plug it all together
 var transport = client.connect(observer, on_write, on_auth, host, port, user, password, null, null);
+transport.authenticatedCallback = function(e) {
+  console.log("AUTHENTICATED_CALLBACK")
+  console.info(e)
+}
 setTimeout(function() {
   transport.auth_password(user, password) //???? why does this have to be here? connect() seems to be ignoring this step??
   }, 2*1000);
