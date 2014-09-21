@@ -68,4 +68,29 @@ run in this directory will do what you need.
 <script type="application/x-javascript" src="/lib/paramikojs/win_pageant.js"></script>
 
 
+<script>
+
+var client = new paramikojs.SSHClient()
+client.set_missing_host_key_policy(new paramikojs.AskPolicy())
+
+var observer = {} // I.. think .. this doesn't actually need methods? I hope??
+
+function on_write(data) {
+  console.log("SSHClient is sending", data)
+  // TODO
+}
+
+function on_auth() {
+  console.log("Successfully connected")
+}
+
+var host = "localhost"
+var port = 22;
+var user = "kousu"
+var password = prompt("Enter your password (very insecurely)")
+
+var transport = client.connect(observer, on_write, on_auth, host, port, user, password, null, null);
+
+</script>
+
 </html>
