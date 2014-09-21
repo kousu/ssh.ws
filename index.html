@@ -13,7 +13,34 @@ $ python2 -m SimpleHTTPServer
 
 run in this directory will do what you need.
 
-<div id="termDiv" style="width: 800; height: 800"></div>
+<div id="wrap">
+  <div id="termDiv" style="width: 80%; height: 80%; overflow: scroll"></div>
+
+  <div id="controls">
+  <input type="text" id="username" placeholder="Username"></input>
+  <input type="password" id="password" placeholder="Password"></input>
+  <script>
+  function uiConnect() {
+    var server = new URL(location);
+    //TODO: write a version which uses socks5.ws and uses server as a proxy and has an extra field here for the target server
+    server.port = 8022;
+    server.protocol = "ws:"
+    connect(server, $('#username').val(), $('#password').val())
+    $('#password').val(null)
+    
+    $('#btnConnect').prop("disabled", true)
+    $('#username').prop("disabled", true)
+    $('#password').prop("disabled", true)    
+    
+  }
+  
+  function uiDisconnect() {
+    disconnect()
+  }
+  </script>
+  <button onclick="uiConnect()" id="btnConnect">Connect</button>
+  </div>
+</div>
 
 </body>
 
@@ -23,6 +50,9 @@ run in this directory will do what you need.
 
 
 </script>
+
+<script type="application/x-javascript" src="/lib/jquery.js"></script>
+
 <!-- imports from FireSSH because paramikojs is not properly self-contained -->
 <script type="application/x-javascript" src="/lib/paramikojs/globals.js"></script>
 <script type="application/x-javascript" src="/lib/paramikojs/log.js"></script>
@@ -79,129 +109,9 @@ run in this directory will do what you need.
 
 <script>
 
-// WEBSOCKETS
 
 
 
-var ws = new WebSocket("ws://localhost:8022", "base64") //ugh, base64, dammit
-ws.onopen = function(evt) {
-  console.info("websocket open")
-}
-
-
-ws.onclose = function(evt) {
-  console.log("websocket closed")
-}
-
-ws.onerror = function(evt) {
-  console.error(evt)
-}
-
-// PARAMIKO
-
-var host = "localhost"
-var port = 22;
-var user = "kousu"
-var password = null;
-
-require(["password"]) // prompt("Enter your password (very insecurely)")
-
-
-var client = new paramikojs.SSHClient()
-client.set_missing_host_key_policy(new paramikojs.AskPolicy())
-
-var observer = {} // I.. think .. this doesn't actually need methods? I hope??
-observer.version = 0 // wtf. this is used *inside* to generate the welcome banner??
-observer.onSftpCache = function(e) { console.log("onSftpCache:", e) }
-
-function on_auth(e) {
-  // use 'xterm' to get color
-  // 'vt100' or blank for monochrome
-  client.invoke_shell('xterm', 80, 50, on_shell)
-}
-
-var shell = null;
-function on_shell(e) {
-  console.log("successfully constructed a shell")
-  shell = e;
-  
-  setInterval(poll_paramiko, 500);
-}
-
-// PARAMIKO <-> WEBSOCKETS
-function on_write(data) {
-  //console.log("SSHClient is sending", data)
-  
-  // XXX this should buffer until onopen happens!!!  
-  //console.log("websocket write")
-  ws.send(btoa(data))
-}
-
-function on_read(data) {
-  //console.log(data)
-  transport.fullBuffer += data;
-  
-  try {
-    transport.run() // pump one iteration of the 'transport' event loop
-  } catch(err) {
-    console.error(err)
-  }
-}
-
-
-ws.onmessage = function(evt) {
-  //console.log("websocket read")
-  on_read(atob(evt.data));
-}
-
-// plug PARAMIKO <-> WEBSOCKETS all together
-var transport = client.connect(observer, on_write, on_auth, host, port, user, password, null, null);
-transport.authenticatedCallback = function(e) {
-  console.log("AUTHENTICATED_CALLBACK")
-  console.info(e)
-}
-setTimeout(function() {
-  transport.auth_password(user, password) //???? why does this have to be here? connect() seems to be ignoring this step??
-  }, 1*1000);
-/*var transport = new paramikojs.transport(observer); 
-transport.writeCallback = on_write;
-transport.use_compression(true)
-
-//transport.connect(null, null, null, null, null, on_auth)
-
-transport.auth_callback = function() {
-}
-//
-transport.start_client()
-*/
-
-// TERMLIB
-//TODO: figure out how to get termlib to resize itself...
-  var term = new Terminal({rows: 24, greeting: "", crsrBlinkMode: true, handler: sshTermHandler, exitHandler: null ,
-  ctrlHandler: MyctrlHandler,
-  
-     mapANSI: true, // support colors (?? except this doesn't seem to be working
-     ps: "",  //disable built in prompt in favour of what ssh feeds us
-     //charMode: true
-     })
-  
-  //var term = new Terminal( {handler: termHandler, termDiv: "term"} );
-  term.open();
-  term._carriageReturn(); //UNDO the hardcoded prompt() call in term.init(); prompt, even if greeting is empty, calls "_charOut(1)" which I assume is what was making that ugly out of place indent
-  term.charMode = true; //oh boy; setting charMode here vs up in the conf object BEHAVES DIFFERENTLY
-  // setting it here makes it impossible to grab ctrl keys
-  // setting it there ..doesn't seem to do anythign???
-  
-  
-  function MyctrlHandler() {
-    alert("CTRL")
-    sshTermHandler()
-  }
-  
-  function sshTermHandler() {    
-    console.log("sending ", "|"+this.inputChar+"|")
-    shell.send(String.fromCharCode(this.inputChar));
-  }
   
 
 Terminal.prototype._visualBell_On = false; //shittiest visual bell evar
@@ -216,28 +126,169 @@ Terminal.prototype.visualBell = function() {
   }, 50)
 }
 
-function write_termlib(data) {
-  console.log("received ", "|"+data+"|")
-  term.write(data)
-}
+// TERMLIB
+//TODO: figure out how to get termlib to resize itself...
+var term = new Terminal({cols: 80, rows: Math.floor($("#termDiv").height()/(28+2)), /*28 is the number of pixels our font is... this is not good!!!*/
+                         ps: "",  //disable termlib's prompts
+                         greeting: "",
+                          mapANSI: true, // support colors
+                          crsrBlinkMode: true, // I think this is pretty
+                        })
 
-function poll_paramiko() {
-  try {
-   var data = shell.recv(1<<15)
-   write_termlib(data)
-  } catch(ex) {
-    if(ex instanceof paramikojs.ssh_exception.WaitException) {
-      //pass
-    } else {
-      console.error(ex)
-      throw ex;
+  term.open();
+  term._carriageReturn(); //UNDO the hardcoded prompt() call in term.init(); prompt, even if greeting is empty, calls "_charOut(1)" which I assume is what was making that ugly out of place indent
+  term.cursorOff()
+  term.write("Enter your credentials below.")
+  TermGlobals.disableKeyboard()
+  
+function connect(server, username, password) {
+  //var term = new Terminal( {handler: termHandler, termDiv: "term"} );
+  term.clear()
+  // TODO: only trun this on when SSH comes up
+  //term.charMode = true; //oh boy; setting charMode here vs up in the conf object BEHAVES DIFFERENTLY
+  // setting it here makes it impossible to grab ctrl keys
+  // setting it there ..doesn't seem to do anythign???
+  
+  
+  
+  function sshTermHandler() {    
+    //console.log("sending ", "|"+this.inputChar+"|")
+    shell.send(String.fromCharCode(this.inputChar));
+  }
+  function write_termlib(data) {
+    //console.log("received ", "|"+data+"|")
+    term.write(data)
+  }
+  
+  
+  
+  if(typeof(server) == "string") {
+    server = new URL(server);
+  }
+  if(!(server.protocol == "wss:" //either ssl or non-ssl is alright; we rely on SSH to do the encryption
+     || server.protocol == "ws:")) {
+     throw new Error("ssh.ws must be used with a WebSocket server (which should be proxying to an ssh server)")
+     }
+  
+  // WEBSOCKETS
+  var ws = new WebSocket(server, "base64") //ugh, base64, dammit
+  ws.onopen = function(evt) {
+    console.info("websocket open")
+  }
+
+  ws.onmessage = function(evt) {
+    //console.log("websocket read")
+    on_read(atob(evt.data));
+  }
+
+  ws.onclose = function(evt) {
+    console.log("websocket closed")
+  }
+
+  ws.onerror = function(evt) {
+    console.error(evt)
+  }
+
+  
+  //PARAMIKO
+  var client = new paramikojs.SSHClient()
+  client.set_missing_host_key_policy(new paramikojs.AskPolicy())
+
+  var observer = {} // I.. think .. this doesn't actually need methods? I hope??
+  observer.version = 0 // wtf. this is used *inside* to generate the welcome banner??
+  observer.onSftpCache = function(e) { console.log("onSftpCache:", e) } //a nuisance; innards of paramikojs crash without this
+  
+  function on_write(data) {
+    //console.log("SSHClient is sending", data)
+    
+    // XXX this should buffer until onopen happens!!!  
+    //console.log("websocket write")
+    ws.send(btoa(data))
+  }
+
+  function on_read(data) {
+    transport.fullBuffer += data; //this is ugly, but it is how the paramikojs author did it
+    
+    try {
+      transport.run() // pump one iteration of the 'transport' event loop
+    } catch(err) {
+      term.write(err)
+      console.error(err)
     }
   }
+  
+  function on_auth(e) {
+    // use 'xterm' to get color
+    // 'vt100' or blank for monochrome
+    client.invoke_shell('', term.cols, term.rows, on_shell)
+  } 
+
+   var transport = client.connect(observer, on_write, on_auth, "localhost", 22, username, password, null, null);
+    
+  setTimeout(function() { //???? why does this have to be here? connect() seems to be not doing this step??
+    transport.auth_password(username, password) 
+    }, 1*1000);
+
+
+
+  var shell = null; //icky pseudo-global
+  function on_shell(e) {
+    shell = e;
+    
+    // work around termlib's irritating idea that stealing all key presses is a good idea
+    //Terminal.prototype.globals.registerEvent(term, "focus", function() { term.enableKeyboard() })
+    //Terminal.prototype.globals.registerEvent(term, "blur", function() { term.disableKeyboard() })
+    // XXX this did nothing; but 'enableKeyboard' is a telling place to start looking.
+    
+    // Wire up termlib's stdout *to* ssh
+    term.handler = sshTermHandler;
+    term.charMode = true;         // we need charMode since we want the remote
+                                  // to interpret everything, even backspace and escape.
+    // XXX but charMode does not hook ctrl keys for us (remember: ctrl is not a key in its own right; it is like shift: it chords with other buttons to make higher order keypresses)
+    
+    // And its stdin *from* ssh
+    function poll_paramiko() {
+      try {
+       var data = shell.recv(1<<15)
+       write_termlib(data)
+      } catch(ex) {
+        if(ex instanceof paramikojs.ssh_exception.WaitException) {
+          //pass
+        } else {
+          console.error(ex)
+          throw ex;
+        }
+      }
+    }
+    setInterval(poll_paramiko, 500); //paramikojs is designed around polling, which is dumb
+    
+    // XXX this should be done in on onconnect-for-the-UI callback
+    $('#btnConnect').text("Disconnect").prop("disabled", false).prop("onclick", "uiDisconnect")
+    
+  }
+
+// PARAMIKO <-> WEBSOCKETS
+
+
+/*var transport = new paramikojs.transport(observer); 
+transport.writeCallback = on_write;
+transport.use_compression(true)
+
+//transport.connect(null, null, null, null, null, on_auth)
+
+transport.auth_callback = function() {
 }
+//
+transport.start_client()
+*/
 
-// plug PARAMIKO <-> TERMLIB
-
-
+  
+  
+  
+  
+  
+  
+}
 
 </script>
 
