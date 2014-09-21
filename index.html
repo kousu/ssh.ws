@@ -81,6 +81,8 @@ run in this directory will do what you need.
 
 // WEBSOCKETS
 
+
+
 var ws = new WebSocket("ws://localhost:8022", "base64") //ugh, base64, dammit
 ws.onopen = function(evt) {
   console.info("websocket open")
@@ -100,9 +102,10 @@ ws.onerror = function(evt) {
 var host = "localhost"
 var port = 22;
 var user = "kousu"
-var password = "xxxxxx" // prompt("Enter your password (very insecurely)")
+var password = null;
 
-console.log("hello")
+require(["password"]) // prompt("Enter your password (very insecurely)")
+
 
 var client = new paramikojs.SSHClient()
 client.set_missing_host_key_policy(new paramikojs.AskPolicy())
