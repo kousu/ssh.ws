@@ -1,17 +1,7 @@
 <html>
 
 <body>
-You should probably load this from a webserver to avoid javascript permission problems.
 
-<code>
-$ python3 -m http.server
-</code>
-or
-<code>
-$ python2 -m SimpleHTTPServer
-</code>
-
-run in this directory will do what you need.
 
 <div id="wrap">
   <div id="termDiv" style="width: 80%; height: 80%; overflow: scroll"></div>
@@ -37,10 +27,21 @@ run in this directory will do what you need.
   function uiDisconnect() {
     disconnect()
   }
+  
   </script>
   <button onclick="uiConnect()" id="btnConnect">Connect</button>
   </div>
 </div>
+
+
+<pre style="background: white">
+TODO:
+
+* [ ] I think sending keys one at a time is causing a lot of overhead. Batching them would be better. What does OpenSSH do?
+* [ ] Also, possibly termlib itself is just slow?
+* [ ] 
+
+</pre>
 
 </body>
 

@@ -7,6 +7,28 @@ Inspired by my success with [socks5](http://github.com/kousu/socks5.ws), I now i
 
 In combination with [termlib](http://www.masswerk.at/termlib/), this should provide end-to-end ssh sessions from the browser.
 
+Usage
+=====
+
+You should probably load this from a webserver to avoid javascript permission problems. The quickest one you probably have available is python's stdlib:
+
+```
+$ python3 -m http.server
+```
+or
+```
+$ python2 -m SimpleHTTPServer
+```
+
+You will also need to have ssh with password login working (which is the default) websockify or equivalent in front of it:
+```
+$ websockify 8022 localhost:22
+```
+
+Once you have those three(!) servers running, start your browser:
+```
+$ firefox http://localhost:8000
+```
 
 Competition
 ===========
