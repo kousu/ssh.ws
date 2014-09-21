@@ -93,23 +93,6 @@ body { background: #111111 }
   <input type="text" id="username" placeholder="Username"></input>
   <input type="password" id="password" placeholder="Password"></input>
   <script>
-  function uiConnect() {
-    var server = new URL(location);
-    //TODO: write a version which uses socks5.ws and uses server as a proxy and has an extra field here for the target server
-    server.port = 8022;
-    server.protocol = "ws:"
-    connect(server, $('#username').val(), $('#password').val())
-    $('#password').val(null)
-    
-    $('#btnConnect').prop("disabled", true)
-    $('#username').prop("disabled", true)
-    $('#password').prop("disabled", true)
-  }
-  
-  function uiDisconnect() {
-    disconnect() //TODO
-  }
-  
   </script>
   <button onclick="uiConnect()" id="btnConnect">Connect</button>
   </div>
@@ -137,6 +120,27 @@ $('#btnConnect').prop("disabled", false)
 $('#username').prop("disabled", false)
 $('#password').prop("disabled", false)   
 
+
+
+function uiConnect() {
+  var server = new URL(location);
+  //TODO: write a version which uses socks5.ws and uses server as a proxy and has an extra field here for the target server
+  server.port = 8022;
+  server.protocol = "ws:"
+  connect(server, $('#username').val(), $('#password').val())
+  $('#password').val(null)
+  
+  $('#btnConnect').prop("disabled", true)
+  $('#username').prop("disabled", true)
+  $('#password').prop("disabled", true)
+}
+
+function uiDisconnect() {
+  disconnect() //TODO
+}
+
+
+$("#btnConnect").click(uiConnect)
 
 Terminal.prototype._visualBell_On = false; //shittiest visual bell evar
 Terminal.prototype.visualBell = function() {
@@ -222,7 +226,10 @@ function connect(server, username, password) {
 
   var observer = {} // I.. think .. this doesn't actually need methods? I hope??
   observer.version = 0 // wtf. this is used *inside* to generate the welcome banner??
-  observer.onSftpCache = function(e) { console.log("onSftpCache:", e) } //a nuisance; innards of paramikojs crash without this
+  observer.onSftpCache = function(a,b,callback) { console.log("onSftpCache:")
+  
+  callback(true);
+   } //a nuisance; innards of paramikojs crash without this
   
   function on_write(data) {
     //console.log("SSHClient is sending", data)
@@ -275,9 +282,9 @@ function connect(server, username, password) {
     shell = e;
     
     // work around termlib's irritating idea that stealing all key presses is a good idea
-    //Terminal.prototype.globals.registerEvent(term, "focus", function() { term.enableKeyboard() })
-    //Terminal.prototype.globals.registerEvent(term, "blur", function() { term.disableKeyboard() })
-    // XXX this did nothing; but 'enableKeyboard' is a telling place to start looking.
+    $("#termDiv").focus(function() {  console.log("onfocus"); TermGlobals.enableKeyboard(term) })
+    $("#termDiv").blur( function() { console.log("onblur"); TermGlobals.disableKeyboard(term) })
+    // XXX ther termDiv doesn't receive these event; but 'enableKeyboard' is a telling place to start looking.
     
     // Wire up termlib's stdout *to* ssh
     term.handler = sshTermHandler;
