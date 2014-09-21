@@ -1,49 +1,5 @@
 <html>
-
-<body>
-
-
-<div id="wrap">
-  <div id="termDiv" style="width: 80%; height: 80%; overflow: scroll"></div>
-
-  <div id="controls">
-  <input type="text" id="username" placeholder="Username"></input>
-  <input type="password" id="password" placeholder="Password"></input>
-  <script>
-  function uiConnect() {
-    var server = new URL(location);
-    //TODO: write a version which uses socks5.ws and uses server as a proxy and has an extra field here for the target server
-    server.port = 8022;
-    server.protocol = "ws:"
-    connect(server, $('#username').val(), $('#password').val())
-    $('#password').val(null)
-    
-    $('#btnConnect').prop("disabled", true)
-    $('#username').prop("disabled", true)
-    $('#password').prop("disabled", true)    
-    
-  }
-  
-  function uiDisconnect() {
-    disconnect()
-  }
-  
-  </script>
-  <button onclick="uiConnect()" id="btnConnect">Connect</button>
-  </div>
-</div>
-
-
-<pre style="background: white">
-TODO:
-
-* [ ] I think sending keys one at a time is causing a lot of overhead. Batching them would be better. What does OpenSSH do?
-* [ ] Also, possibly termlib itself is just slow?
-* [ ] 
-
-</pre>
-
-</body>
+<head>
 
 <script src="/lib/require.js"></script>
 <script>
@@ -51,6 +7,7 @@ TODO:
 
 
 </script>
+
 
 <script type="application/x-javascript" src="/lib/jquery.js"></script>
 
@@ -106,14 +63,80 @@ TODO:
 
 
 <script language="JavaScript" type="text/javascript" src="/lib/termlib.js"></script>
+
+
+<style>
+
+.term {
+	font-family: courier,fixed,swiss,sans-serif;
+	font-size: 28px;
+	color: #33d011;
+	background: none;
+}
+.termReverse {
+	color: #111111;
+	background: #33d011;
+}
+
+body { background: #111111 }
+</style>
 </head>
+
+
+<body>
+
+
+<div id="wrap">
+  <div id="termDiv" style="width: 80%; height: 80%; overflow: scroll"></div>
+
+  <div id="controls">
+  <input type="text" id="username" placeholder="Username"></input>
+  <input type="password" id="password" placeholder="Password"></input>
+  <script>
+  function uiConnect() {
+    var server = new URL(location);
+    //TODO: write a version which uses socks5.ws and uses server as a proxy and has an extra field here for the target server
+    server.port = 8022;
+    server.protocol = "ws:"
+    connect(server, $('#username').val(), $('#password').val())
+    $('#password').val(null)
+    
+    $('#btnConnect').prop("disabled", true)
+    $('#username').prop("disabled", true)
+    $('#password').prop("disabled", true)
+  }
+  
+  function uiDisconnect() {
+    disconnect() //TODO
+  }
+  
+  </script>
+  <button onclick="uiConnect()" id="btnConnect">Connect</button>
+  </div>
+</div>
+
+
+<pre style="background: white">
+TODO:
+
+* [ ] I think sending keys one at a time is causing a lot of overhead. Batching them would be better. What does OpenSSH do?
+* [ ] Also, possibly termlib itself is just slow?
+* [ ] 
+
+</pre>
+
+</body>
+
 
 <script>
 
+$(function() { //onload handler, to protect from half-loaded libraries
 
+//disabling controls can live between page refreshes. very annoying.
+$('#btnConnect').prop("disabled", false)
+$('#username').prop("disabled", false)
+$('#password').prop("disabled", false)   
 
-
-  
 
 Terminal.prototype._visualBell_On = false; //shittiest visual bell evar
 Terminal.prototype.visualBell = function() {
@@ -141,7 +164,9 @@ var term = new Terminal({cols: 80, rows: Math.floor($("#termDiv").height()/(28+2
   term.cursorOff()
   term.write("Enter your credentials below.")
   TermGlobals.disableKeyboard()
-  
+
+
+
 function connect(server, username, password) {
   //var term = new Terminal( {handler: termHandler, termDiv: "term"} );
   term.clear()
@@ -276,50 +301,17 @@ function connect(server, username, password) {
     }
     setInterval(poll_paramiko, 500); //paramikojs is designed around polling, which is dumb
     
-    // XXX this should be done in on onconnect-for-the-UI callback
+    // XXX this should be done in the View, not networking code;
+    // probably requires adding an onconnect-for-the-UI callback
     $('#btnConnect').text("Disconnect").prop("disabled", false).prop("onclick", "uiDisconnect")
-    
+    TermGlobals.enableKeyboard(term) //necessary since we *disabled* it above
   }
-
-// PARAMIKO <-> WEBSOCKETS
-
-
-/*var transport = new paramikojs.transport(observer); 
-transport.writeCallback = on_write;
-transport.use_compression(true)
-
-//transport.connect(null, null, null, null, null, on_auth)
-
-transport.auth_callback = function() {
-}
-//
-transport.start_client()
-*/
-
-  
-  
-  
-  
-  
   
 }
+
+})
 
 </script>
 
-<style>
-
-.term {
-	font-family: courier,fixed,swiss,sans-serif;
-	font-size: 28px;
-	color: #33d011;
-	background: none;
-}
-.termReverse {
-	color: #111111;
-	background: #33d011;
-}
-
-body { background: #111111 }
-</style>
 
 </html>
