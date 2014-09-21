@@ -224,14 +224,27 @@ function connect(server, username, password) {
     client.invoke_shell('', term.cols, term.rows, on_shell)
   } 
 
-   var transport = client.connect(observer, on_write, on_auth, "localhost", 22, username, password, null, null);
-    
-  setTimeout(function() { //???? why does this have to be here? connect() seems to be not doing this step??
-    transport.auth_password(username, password) 
-    }, 1*1000);
-
-
-
+  // paramikojs.client is giant pain
+  // it is heavily IoC'd: there is no way to get anything done with it without
+  // a) writing lots of callbacks
+  // b) knowing *exactly* how those callbacks are suppose to interact
+  // paramiko.transport is where the heavy lifting actually is, though
+  //  and it's not quite as demanding about its IoC
+  // in particular, the default authenticatedCallback (which should really be called onAuthOffer, to distinguish it from auth_callback which is called when an auth negotiation actually completes--positively or negatively; and you also need to distinguish the auth_success callback...
+  //  ) er, but anyway, the default one works whereas the one that client insists on first 
+  // will silently die unless your observer takes an active role to answer "this host key is not trusted. trust?"
+  // NOTE: paramikojs ignores hostname and port; it only uses them as strings to look up host keys. Your real connection is controlled by on_write which you give to paramiko + on_read which must write to paramiko's internal datastructures.
+  var transport = client.connect(observer, on_write, on_auth, "localhost", 22, username, password, null, null);
+  // but we *must* have client because client has all the app-level methods, like invoke_shell() and the sftp interface and such
+  // but client was only ever tested in FireSSH, which has access to OS APIs
+  // Here's my compromise:
+  // client.connect--which really only sets some flags and writes some event handlers
+  // and javascript is single-threaded, so those handlers won't come alive until this script runs off the end
+   // so we can just call transport's connect() again with the arguments I actually want it to have
+   //TODO: it is 
+   
+  transport.connect(null, null, username, password, null, on_auth)
+  
   var shell = null; //icky pseudo-global
   function on_shell(e) {
     shell = e;
