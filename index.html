@@ -112,9 +112,6 @@ observer.version = 0 // wtf. this is used *inside* to generate the welcome banne
 observer.onSftpCache = function(e) { console.log("onSftpCache:", e) }
 
 function on_auth(e) {
-  console.log("Successfully connected")
-  console.log("AUTH_CALLBACK", e)
-  
   // use 'xterm' to get color
   // 'vt100' or blank for monochrome
   client.invoke_shell('xterm', 80, 50, on_shell)
@@ -123,21 +120,17 @@ function on_auth(e) {
 var shell = null;
 function on_shell(e) {
   console.log("successfully constructed a shell")
-  console.log(e)
   shell = e;
   
   setInterval(poll_paramiko, 500);
-  setTimeout(function() {
-    shell.send("mktemp\n")
-  }, 2*1000);
 }
 
 // PARAMIKO <-> WEBSOCKETS
 function on_write(data) {
-  console.log("SSHClient is sending", data)
+  //console.log("SSHClient is sending", data)
   
   // XXX this should buffer until onopen happens!!!  
-  console.log("websocket write")
+  //console.log("websocket write")
   ws.send(btoa(data))
 }
 
@@ -154,7 +147,7 @@ function on_read(data) {
 
 
 ws.onmessage = function(evt) {
-  console.log("websocket read")
+  //console.log("websocket read")
   on_read(atob(evt.data));
 }
 
@@ -166,7 +159,7 @@ transport.authenticatedCallback = function(e) {
 }
 setTimeout(function() {
   transport.auth_password(user, password) //???? why does this have to be here? connect() seems to be ignoring this step??
-  }, 2*1000);
+  }, 1*1000);
 /*var transport = new paramikojs.transport(observer); 
 transport.writeCallback = on_write;
 transport.use_compression(true)
@@ -180,18 +173,22 @@ transport.start_client()
 */
 
 // TERMLIB
-
+//TODO: figure out how to get termlib to resize itself...
   var term = new Terminal({rows: 24, greeting: "", crsrBlinkMode: true, handler: sshTermHandler, exitHandler: null ,
   ctrlHandler: MyctrlHandler,
   
      mapANSI: true, // support colors (?? except this doesn't seem to be working
      ps: "",  //disable built in prompt in favour of what ssh feeds us
-     charMode: true
+     //charMode: true
      })
   
   //var term = new Terminal( {handler: termHandler, termDiv: "term"} );
   term.open();
-  term.charMode = true;
+  term._carriageReturn(); //UNDO the hardcoded prompt() call in term.init(); prompt, even if greeting is empty, calls "_charOut(1)" which I assume is what was making that ugly out of place indent
+  term.charMode = true; //oh boy; setting charMode here vs up in the conf object BEHAVES DIFFERENTLY
+  // setting it here makes it impossible to grab ctrl keys
+  // setting it there ..doesn't seem to do anythign???
+  
   
   function MyctrlHandler() {
     alert("CTRL")
@@ -216,49 +213,24 @@ Terminal.prototype.visualBell = function() {
   }, 50)
 }
 
-var gData;
 function write_termlib(data) {
-    console.log("received ", "|"+data+"|")
-    
-  function writechar(c) {
-    if(c.charCodeAt(0) == termKey.BACKSPACE) {
-      term.backspace()
-    } else if(c.charCodeAt(0) == termKey.BEL) {
-      term.visualBell()
-    } else {
-      term.write(c)
-    }
-  }
-  function writechars(C) {
-    C = C.split("\b\x1B[K").join("\b") //this escape code (\x1B is ESC) comes along with a backspace and causes..problems. termlib doesn't handle it despite me telling it to. erugh.
-    for(var i=0; i<C.length; i++) {
-      writechar(C.charAt(i))
-    }
-  }
-    
-     var lines = data.split("\r\n")
-     var last_line = lines[lines.length-1]; //we need to skip the newline on the last line or else funny things happen
-     lines = lines.slice(0, lines.length-1)
-     lines.forEach(function(line) {
-       writechars(line)
-       term.newLine() ;//termlib doesn't know how to handle actual newlines
-       })
-      writechars(last_line)
+  console.log("received ", "|"+data+"|")
+  term.write(data)
 }
-  
-  function poll_paramiko() {
-    try {
-     var data = shell.recv(1<<15)
-     write_termlib(data)
-    } catch(ex) {
-      if(ex instanceof paramikojs.ssh_exception.WaitException) {
-        //pass
-      } else {
-        console.error(ex)
-        throw ex;
-      }
+
+function poll_paramiko() {
+  try {
+   var data = shell.recv(1<<15)
+   write_termlib(data)
+  } catch(ex) {
+    if(ex instanceof paramikojs.ssh_exception.WaitException) {
+      //pass
+    } else {
+      console.error(ex)
+      throw ex;
     }
   }
+}
 
 // plug PARAMIKO <-> TERMLIB
 
