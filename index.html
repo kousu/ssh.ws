@@ -21,8 +21,11 @@ run in this directory will do what you need.
 
 
 </script>
+<!-- imports from FireSSH because paramikojs is not properly self-contained -->
+<script type="application/x-javascript" src="/lib/paramikojs/globals.js"></script>
 <script type="application/x-javascript" src="/lib/paramikojs/log.js"></script>
 
+<!-- paramikojs -->
 <script type="application/x-javascript" src="/lib/paramikojs/kryptos/kryptos.js"></script>
 <script type="application/x-javascript" src="/lib/paramikojs/kryptos/Cipher/AES.js"></script>
 <script type="application/x-javascript" src="/lib/paramikojs/kryptos/Cipher/Blowfish.js"></script>
@@ -70,27 +73,93 @@ run in this directory will do what you need.
 
 <script>
 
-var client = new paramikojs.SSHClient()
-client.set_missing_host_key_policy(new paramikojs.AskPolicy())
+// WEBSOCKETS
 
-var observer = {} // I.. think .. this doesn't actually need methods? I hope??
-
-function on_write(data) {
-  console.log("SSHClient is sending", data)
-  // TODO
+var ws = new WebSocket("ws://localhost:8022", "base64") //ugh, base64, dammit
+ws.onopen = function(evt) {
+  console.info("websocket open")
 }
 
-function on_auth() {
-  console.log("Successfully connected")
+
+ws.onclose = function(evt) {
+  console.log("websocket closed")
 }
+
+ws.onerror = function(evt) {
+  console.error(evt)
+}
+
+// PARAMIKO
 
 var host = "localhost"
 var port = 22;
 var user = "kousu"
-var password = prompt("Enter your password (very insecurely)")
+var password = "sdffodsjfsduij" //prompt("Enter your password (very insecurely)")
 
+var client = new paramikojs.SSHClient()
+client.set_missing_host_key_policy(new paramikojs.AskPolicy())
+
+var observer = {} // I.. think .. this doesn't actually need methods? I hope??
+observer.version = 0 // wtf. this is used *inside* to generate the welcome banner??
+observer.onSftpCache = function(e) { console.log("onSftpCache:", e) }
+
+function on_auth() {
+  console.log("Successfully connected")
+  console.log("AUTH_CALLBACK")
+  alert("AUTH")
+  
+  client.invoke_shell('xterm-256color', 80, 50, on_shell)
+}
+
+function on_shell() {
+  console.log("successfully constructed a shell")
+}
+
+// PARAMIKO <-> WEBSOCKETS
+function on_write(data) {
+  console.log("SSHClient is sending", data)
+  
+  // XXX this should buffer until onopen happens!!!  
+  console.log("websocket write")
+  ws.send(btoa(data))
+}
+
+function on_read(data) {
+  console.log(data)
+  console.log("OLD BUFFER:", transport.fullBuffer)
+  transport.fullBuffer += data;
+  console.log("NEW BUFFER:", transport.fullBuffer)
+  
+  try {
+    transport.run() // pump one iteration of the 'transport' event loop
+  } catch(err) {
+    console.error(err)
+  }
+  console.log("NEWEST BUFFER:", transport.fullBuffer)
+}
+
+
+ws.onmessage = function(evt) {
+  console.log("websocket read")
+  on_read(atob(evt.data));
+}
+
+// plug it all together
 var transport = client.connect(observer, on_write, on_auth, host, port, user, password, null, null);
+setTimeout(function() {
+  transport.auth_password(user, password) //???? why does this have to be here? connect() seems to be ignoring this step??
+  }, 2*1000);
+/*var transport = new paramikojs.transport(observer); 
+transport.writeCallback = on_write;
+transport.use_compression(true)
 
+//transport.connect(null, null, null, null, null, on_auth)
+
+transport.auth_callback = function() {
+}
+//
+transport.start_client()
+*/
 </script>
 
 </html>
