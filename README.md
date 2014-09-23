@@ -20,7 +20,9 @@ or
 $ python2 -m SimpleHTTPServer
 ```
 
-You will also need to have ssh with password login working (which is the default) websockify or equivalent in front of it:
+You will also need to have sshd with password login working (which is the default).
+
+Finally, since this is ssh.**ws** you need [websockify](https://github.com/kanaka/websockify/) or equivalent in front of it:
 ```
 $ websockify 8022 localhost:22
 ```
@@ -62,13 +64,18 @@ bridge you could be able to set this up only once and ssh to anywhere--but be ca
 Security
 ========
 
-In all cases with ssh.ws, the server never sees the content of the ssh connection,
-because ssh is running in the browser, giving end-to-end encryption.
-In contrast, all competition based on a backend proxy sees your screen content and keystrokes in the clear, /* TODO: link the three or four competitors' pages that mention "we are a man in the middle security hole" */
-and plus they just relay that data to the front over SSL which should all know by now is basically toast, crypto-wise.
+Most of the competition uses a proxy which sees your screen content and keystrokes in the clear. For example,
+GotoSSH [says](http://www.gotossh.com/security)
+_"We act as a middle-man between your web browser and the SSH session to your server machine. "_
+and ConsoleFISH [says](serfish.com/console/web-ssh-security.jsp)
+_"all of your communication is available in unencrypted form at the SSH tunnel"_
+Further, client->proxy is usually run over SSL which we should all know by now is basically toast, crypto-wise.
 
-The most dangerous attack to ssh.ws is DNS/arp poisoning such that the paramikojs you download is a compromised copy;
-there is no good solution to protecting against that, and in this respect FireSSH has a strong advantage because,
-like openssh, you download it just once--and if your distro is good, it has package signatures too.
-(TODO: is there a mitigation? relying on caching? some kind of package signature?)
+ConsoleFISH claims this setup is true of "any other web SSH client" and it is true that ssh.ws
+requires a proxy to translate WebSocket to TCP, but neither that proxy nor anyone sniffing client->proxy
+ever sees the content because ssh is running in javascript, giving end-to-end authentication (via hostkeys) and encryption.
+
+The most dangerous attack to ssh.ws is DNS/arp poisoning to compromise the copy of [paramikojs](https://github.com/mimecuvalo/paramikojs)
+which you download.  There is no good all around solution for that, and in this respect FireSSH has a strong security advantage because,
+like openssh, you download it--and if your distro is good, verify package signatures--once and for all.
 
