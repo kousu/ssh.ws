@@ -6,3 +6,4 @@
 * [ ] Write a handler for the various interactions ssh requires, e.g. the host key not 
 * [ ] Store data (e.g. known host keys and our private key) in cookies / indexeddb/something
 * [ ] Package signatures? Is there any sane way to handle this when things are being downloaded over and over again , or do we need to rely on SSL?
+* [ ] Toss termlib and use the lib that FireSSH uses, since that one seems more up to date.
