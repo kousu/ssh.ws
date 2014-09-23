@@ -177,19 +177,7 @@ function connect(server, username, password) {
   // TODO: only trun this on when SSH comes up
   //term.charMode = true; //oh boy; setting charMode here vs up in the conf object BEHAVES DIFFERENTLY
   // setting it here makes it impossible to grab ctrl keys
-  // setting it there ..doesn't seem to do anythign???
-  
-  
-  
-  function sshTermHandler() {    
-    //console.log("sending ", "|"+this.inputChar+"|")
-    shell.send(String.fromCharCode(this.inputChar));
-  }
-  function write_termlib(data) {
-    //console.log("received ", "|"+data+"|")
-    term.write(data)
-  }
-  
+  // setting it there ..doesn't seem to do anything???  
   
   
   if(typeof(server) == "string") {
@@ -237,7 +225,8 @@ function connect(server, username, password) {
   }
 
   function on_read(data) {
-    transport.fullBuffer += data; //this is ugly, but it is how the paramikojs author did it
+    //this is ugly, but it is how FireSSH does it
+    transport.fullBuffer += data;
     
     try {
       transport.run() // pump one iteration of the 'transport' event loop
@@ -247,13 +236,7 @@ function connect(server, username, password) {
     }
   }
   
-  function on_auth(e) {
-    // use 'xterm' to get color
-    // 'vt100' or blank for monochrome
-    client.invoke_shell('', term.cols, term.rows, on_shell)
-  } 
-
-  // paramikojs.client is giant pain
+  // paramikojs.client is a giant pain
   // it is heavily IoC'd: there is no way to get anything done with it without
   // a) writing lots of callbacks
   // b) knowing *exactly* how those callbacks are suppose to interact
@@ -263,7 +246,7 @@ function connect(server, username, password) {
   //  ) er, but anyway, the default one works whereas the one that client insists on first 
   // will silently die unless your observer takes an active role to answer "this host key is not trusted. trust?"
   // NOTE: paramikojs ignores hostname and port; it only uses them as strings to look up host keys. Your real connection is controlled by on_write which you give to paramiko + on_read which must write to paramiko's internal datastructures.
-  var transport = client.connect(observer, on_write, on_auth, "localhost", 22, username, password, null, null);
+  var transport = client.connect(observer, on_write, function() { }, "localhost", 22, username, password, null, null);
   // but we *must* have client because client has all the app-level methods, like invoke_shell() and the sftp interface and such
   // but client was only ever tested in FireSSH, which has access to OS APIs
   // Here's my compromise:
@@ -272,44 +255,55 @@ function connect(server, username, password) {
    // so we can just call transport's connect() again with the arguments I actually want it to have
    //TODO: it is 
    
-  transport.connect(null, null, username, password, null, on_auth)
-  
-  var shell = null; //icky pseudo-global
-  function on_shell(e) {
-    shell = e;
+  transport.connect(null, null, username, password, null, function() {
+    // on_auth()
     
-    // work around termlib's irritating idea that stealing all key presses is a good idea
-    //Terminal.prototype.globals.registerEvent(term, "focus", function() { term.enableKeyboard() })
-    //Terminal.prototype.globals.registerEvent(term, "blur", function() { term.disableKeyboard() })
-    // XXX this did nothing; but 'enableKeyboard' is a telling place to start looking.
-    
-    // Wire up termlib's stdout *to* ssh
-    term.handler = sshTermHandler;
-    term.charMode = true;         // we need charMode since we want the remote
-                                  // to interpret everything, even backspace and escape.
-    // XXX but charMode does not hook ctrl keys for us (remember: ctrl is not a key in its own right; it is like shift: it chords with other buttons to make higher order keypresses)
-    
-    // And its stdin *from* ssh
-    function poll_paramiko() {
-      try {
-       var data = shell.recv(1<<15)
-       write_termlib(data)
-      } catch(ex) {
-        if(ex instanceof paramikojs.ssh_exception.WaitException) {
-          //pass
-        } else {
-          console.error(ex)
-          throw ex;
+    // use 'xterm' to get color
+    // 'vt100' or blank for monochrome
+    client.invoke_shell('', term.cols, term.rows, function(shell) {
+      // on_shell()
+      
+      // work around termlib's irritating idea that stealing all key presses is a good idea
+      //Terminal.prototype.globals.registerEvent(term, "focus", function() { term.enableKeyboard() })
+      //Terminal.prototype.globals.registerEvent(term, "blur", function() { term.disableKeyboard() })
+      // XXX this did nothing; but 'enableKeyboard' is a telling place to start looking.
+      
+      // Wire up termlib's stdout *to* ssh
+      term.charMode = true;         // we need charMode since we want the remote
+                                    // to interpret everything, even backspace and escape.
+      // XXX termlib's charMode does not hook ctrl keys for us (remember: ctrl is not a key in its own right; it is like shift: it chords with other buttons to make higher order keypresses)
+      //     making the ctrl keys unavailable
+      term.handler = function() {
+        //console.log("sending ", "|"+this.inputChar+"|")
+        shell.send(String.fromCharCode(this.inputChar));
+      }
+      
+
+      // And its stdin *from* ssh
+      function poll_paramiko() {
+        try {
+         var data = shell.recv(1<<15)
+         term.write(data)
+        } catch(ex) {
+          if(ex instanceof paramikojs.ssh_exception.WaitException) {
+            //pass
+          } else {
+            console.error(ex)
+            throw ex;
+          }
         }
       }
-    }
-    setInterval(poll_paramiko, 500); //paramikojs is designed around polling, which is dumb
-    
-    // XXX this should be done in the View, not networking code;
-    // probably requires adding an onconnect-for-the-UI callback
-    $('#btnConnect').text("Disconnect").prop("disabled", false).prop("onclick", "uiDisconnect")
-    TermGlobals.enableKeyboard(term) //necessary since we *disabled* it above
-  }
+      setInterval(poll_paramiko, 500); //paramikojs is designed around polling, which is dumb
+      // XXX we should save the timer ID and unregister it on disconnect
+      
+      // XXX this should be done in the View, not networking code;
+      // probably requires adding an onconnect-for-the-UI callback
+      $('#btnConnect').text("Disconnect").prop("disabled", false).prop("onclick", "uiDisconnect")
+      TermGlobals.enableKeyboard(term) //necessary since we *disabled* it above
+    })
+  })
+
+  
   
 }
 
